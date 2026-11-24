@@ -14,8 +14,38 @@ st.write("Predict traffic volume using Machine Learning")
 
 # Load data and model
 df = pd.read_csv("data/Metro_Interstate_Traffic_Volume.csv")
-model = joblib.load("models/traffic_model.pkl")
 
+import os
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.pipeline import Pipeline
+
+if os.path.exists("models/traffic_model.pkl"):
+    model = joblib.load("models/traffic_model.pkl")
+else:
+    X = df[[
+        "hour", "day", "month", "temp",
+        "rain_1h", "snow_1h", "clouds_all",
+        "weather_main"
+    ]]
+    y = df["traffic_volume"]
+
+    preprocessor = ColumnTransformer([
+        ("cat", OneHotEncoder(handle_unknown="ignore"),
+         ["weather_main"])
+    ], remainder="passthrough")
+
+    model = Pipeline([
+        ("preprocessor", preprocessor),
+        ("regressor", RandomForestRegressor(
+            n_estimators=100, random_state=42
+        ))
+    ])
+
+    model.fit(X, y)
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(model, "models/traffic_model.pkl")
 # User inputs
 st.sidebar.header("Traffic Conditions")
 
