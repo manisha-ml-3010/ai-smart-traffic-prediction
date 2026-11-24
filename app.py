@@ -138,12 +138,32 @@ if st.button("Predict Traffic"):
     else:
         st.error("HIGH TRAFFIC")
 
-# Historical analytics
-st.subheader("📊 Historical Traffic Analytics")
 
-hourly = df.groupby("hour")["traffic_volume"].mean()
+# Advanced Traffic Analytics
+st.subheader("📈 Advanced Traffic Analytics")
 
-st.line_chart(hourly)
+col1, col2 = st.columns(2)
+
+with col1:
+    st.write("Average Traffic by Hour")
+    hourly = df.groupby("hour")["traffic_volume"].mean()
+    st.line_chart(hourly)
+
+with col2:
+    st.write("Traffic by Weather")
+    weather_data = df.groupby("weather_main")[
+        "traffic_volume"
+    ].mean()
+    st.bar_chart(weather_data)
+
+st.subheader("📅 Daily Traffic Analysis")
+
+df["day_name"] = df["date_time"].dt.day_name()
+
+daily = df.groupby("day_name")["traffic_volume"].mean()
+
+st.bar_chart(daily)
+
 
 st.subheader("📋 Dataset Overview")
 
