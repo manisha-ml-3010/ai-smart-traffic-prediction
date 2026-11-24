@@ -137,6 +137,21 @@ if st.button("Predict Traffic"):
         st.warning("MODERATE TRAFFIC")
     else:
         st.error("HIGH TRAFFIC")
+   
+    st.subheader("🚦 Smart Signal Recommendation")
+
+    if prediction < 2000:
+        st.success("Suggested Action: Normal signal timing")
+        st.info("Maintain regular traffic flow.")
+
+    elif prediction < 4000:
+        st.warning("Suggested Action: Monitor signal timing")
+        st.info("Consider slightly increasing green time.")
+
+    else:
+        st.error("Suggested Action: High traffic alert")
+        st.info("Consider prioritizing this direction.")
+    
 
 
 # Advanced Traffic Analytics
