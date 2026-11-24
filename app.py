@@ -68,6 +68,14 @@ def train_model():
     return model
 
 model = train_model()
+st.subheader("📊 Traffic Overview")
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Total Records", f"{len(df):,}")
+col2.metric("Average Traffic", f"{df['traffic_volume'].mean():,.0f}")
+col3.metric("Maximum Traffic", f"{df['traffic_volume'].max():,.0f}")
+col4.metric("Average Temperature", f"{df['temp'].mean():.1f} K")
 
 # Sidebar inputs
 st.sidebar.header("Traffic Conditions")
