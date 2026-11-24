@@ -1,10 +1,14 @@
 
 import streamlit as st
 import pandas as pd
-import joblib
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.pipeline import Pipeline
 
+# Page settings
 st.set_page_config(
-    page_title="AI Traffic Management",
+    page_title="AI Smart Traffic Management",
     page_icon="🚦",
     layout="wide"
 )
@@ -12,61 +16,93 @@ st.set_page_config(
 st.title("🚦 AI Smart Traffic Management System")
 st.write("Predict traffic volume using Machine Learning")
 
-# Load data and model
-df = pd.read_csv("data/Metro_Interstate_Traffic_Volume.csv")
+# Load dataset
+@st.cache_data
+def load_data():
+    data = pd.read_csv(
+        "data/Metro_Interstate_Traffic_Volume.csv"
+    )
+    data["date_time"] = pd.to_datetime(data["date_time"])
 
-import os
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.pipeline import Pipeline
+    data["hour"] = data["date_time"].dt.hour
+    data["day"] = data["date_time"].dt.dayofweek
+    data["month"] = data["date_time"].dt.month
 
-X = df[[
-    "hour", "day", "month", "temp",
-    "rain_1h", "snow_1h", "clouds_all",
-    "weather_main"
-]]
-y = df["traffic_volume"]
+    return data
 
-preprocessor = ColumnTransformer([
-    ("cat", OneHotEncoder(handle_unknown="ignore"),
-     ["weather_main"])
-], remainder="passthrough")
+df = load_data()
 
-model = Pipeline([
-    ("preprocessor", preprocessor),
-    ("regressor", RandomForestRegressor(
-        n_estimators=100,
-        random_state=42
-    ))
-])
+# Prepare model
+@st.cache_resource
+def train_model():
+    features = [
+        "hour", "day", "month", "temp",
+        "rain_1h", "snow_1h", "clouds_all",
+        "weather_main"
+    ]
 
-model.fit(X, y)
+    data = df.dropna(subset=features + ["traffic_volume"])
 
-os.makedirs("models", exist_ok=True)
-joblib.dump(model, "models/traffic_model.pkl")
+    X = data[features]
+    y = data["traffic_volume"]
 
-# User inputs
+    preprocessor = ColumnTransformer([
+        (
+            "weather",
+            OneHotEncoder(handle_unknown="ignore"),
+            ["weather_main"]
+        )
+    ], remainder="passthrough")
+
+    model = Pipeline([
+        ("preprocessor", preprocessor),
+        ("regressor", RandomForestRegressor(
+            n_estimators=100,
+            random_state=42,
+            n_jobs=-1
+        ))
+    ])
+
+    model.fit(X, y)
+
+    return model
+
+model = train_model()
+
+# Sidebar inputs
 st.sidebar.header("Traffic Conditions")
 
 hour = st.sidebar.slider("Hour", 0, 23, 8)
-day = st.sidebar.slider("Day of Week (0=Monday)", 0, 6, 1)
+day = st.sidebar.slider("Day (0 = Monday)", 0, 6, 1)
 month = st.sidebar.slider("Month", 1, 12, 6)
 
 temp = st.sidebar.slider(
     "Temperature (Kelvin)", 240.0, 310.0, 280.0
 )
-rain = st.sidebar.number_input("Rain (mm)", 0.0, 100.0, 0.0)
-snow = st.sidebar.number_input("Snow (mm)", 0.0, 100.0, 0.0)
-clouds = st.sidebar.slider("Cloud Coverage", 0, 100, 40)
+
+rain = st.sidebar.number_input(
+    "Rain (mm)", min_value=0.0, value=0.0
+)
+
+snow = st.sidebar.number_input(
+    "Snow (mm)", min_value=0.0, value=0.0
+)
+
+clouds = st.sidebar.slider(
+    "Cloud Coverage", 0, 100, 40
+)
+
+weather_options = sorted(
+    df["weather_main"].dropna().unique().tolist()
+)
 
 weather = st.sidebar.selectbox(
-    "Weather",
-    sorted(df["weather_main"].dropna().unique())
+    "Weather Condition", weather_options
 )
 
 # Prediction
 if st.button("Predict Traffic"):
+
     input_data = pd.DataFrame([{
         "hour": hour,
         "day": day,
@@ -81,26 +117,29 @@ if st.button("Predict Traffic"):
     prediction = model.predict(input_data)[0]
 
     st.subheader("AI Prediction Result")
-    st.metric("Predicted Traffic Volume", f"{prediction:.0f} vehicles")
+
+    st.metric(
+        "Predicted Traffic Volume",
+        f"{prediction:,.0f} vehicles"
+    )
 
     if prediction < 2000:
-        st.success("Low Traffic")
-        st.info("Normal traffic flow expected.")
+        st.success("LOW TRAFFIC")
     elif prediction < 4000:
-        st.warning("Moderate Traffic")
-        st.info("Monitor traffic conditions.")
+        st.warning("MODERATE TRAFFIC")
     else:
-        st.error("High Traffic")
-        st.info("Consider reviewing traffic signal timing.")
+        st.error("HIGH TRAFFIC")
 
 # Historical analytics
-st.subheader("Historical Traffic Analytics")
+st.subheader("📊 Historical Traffic Analytics")
 
-df["date_time"] = pd.to_datetime(df["date_time"])
-hourly = df.groupby(df["date_time"].dt.hour)[
-    "traffic_volume"
-].mean()
+hourly = df.groupby("hour")["traffic_volume"].mean()
 
 st.line_chart(hourly)
-st.subheader("Dataset Overview")
-st.write(df.head())
+
+st.subheader("📋 Dataset Overview")
+
+st.dataframe(df.head(10), use_container_width=True)
+
+st.write("Total Records:", len(df))
+    
