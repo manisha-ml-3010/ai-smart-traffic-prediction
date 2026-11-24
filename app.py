@@ -2,97 +2,75 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import os
-
-from sklearn.ensemble import RandomForestRegressor
 
 st.set_page_config(
-    page_title="AI Smart Traffic Prediction",
+    page_title="AI Traffic Management",
     page_icon="🚦",
     layout="wide"
 )
 
-st.title("🚦 AI Smart Traffic Prediction System")
-st.write("Predict traffic volume using Machine Learning.")
+st.title("🚦 AI Smart Traffic Management System")
+st.write("Predict traffic volume using Machine Learning")
 
-# Load dataset
-data = pd.read_csv("data/traffic.csv")
+# Load data and model
+df = pd.read_csv("data/Metro_Interstate_Traffic_Volume.csv")
+model = joblib.load("models/traffic_model.pkl")
 
-# Load or train model automatically
-if os.path.exists("models/traffic_model.pkl"):
-    model = joblib.load("models/traffic_model.pkl")
-else:
-    X = data.drop("traffic_volume", axis=1)
-    y = data["traffic_volume"]
+# User inputs
+st.sidebar.header("Traffic Conditions")
 
-    model = RandomForestRegressor(
-        n_estimators=100,
-        random_state=42
-    )
-    model.fit(X, y)
+hour = st.sidebar.slider("Hour", 0, 23, 8)
+day = st.sidebar.slider("Day of Week (0=Monday)", 0, 6, 1)
+month = st.sidebar.slider("Month", 1, 12, 6)
 
-    os.makedirs("models", exist_ok=True)
-    joblib.dump(model, "models/traffic_model.pkl")
+temp = st.sidebar.slider(
+    "Temperature (Kelvin)", 240.0, 310.0, 280.0
+)
+rain = st.sidebar.number_input("Rain (mm)", 0.0, 100.0, 0.0)
+snow = st.sidebar.number_input("Snow (mm)", 0.0, 100.0, 0.0)
+clouds = st.sidebar.slider("Cloud Coverage", 0, 100, 40)
 
-st.subheader("Enter Traffic Conditions")
+weather = st.sidebar.selectbox(
+    "Weather",
+    sorted(df["weather_main"].dropna().unique())
+)
 
-col1, col2 = st.columns(2)
-
-with col1:
-    hour = st.slider("Select Hour", 0, 23, 8)
-    day = st.selectbox(
-        "Select Day",
-        [1, 2, 3, 4, 5, 6, 7]
-    )
-
-with col2:
-    temperature = st.slider(
-        "Temperature (°C)", 0, 50, 28
-    )
-
-    weather = st.selectbox(
-        "Weather",
-        ["Clear", "Cloudy", "Rainy"]
-    )
-
-weather_code = {
-    "Clear": 0,
-    "Cloudy": 1,
-    "Rainy": 2
-}
-
+# Prediction
 if st.button("Predict Traffic"):
     input_data = pd.DataFrame([{
         "hour": hour,
-        "day_of_week": day,
-        "temperature": temperature,
-        "weather_code": weather_code[weather]
+        "day": day,
+        "month": month,
+        "temp": temp,
+        "rain_1h": rain,
+        "snow_1h": snow,
+        "clouds_all": clouds,
+        "weather_main": weather
     }])
 
     prediction = model.predict(input_data)[0]
 
-    st.subheader("Prediction Result")
+    st.subheader("AI Prediction Result")
+    st.metric("Predicted Traffic Volume", f"{prediction:.0f} vehicles")
 
-    st.metric(
-        "Predicted Traffic Volume",
-        f"{prediction:.0f}"
-    )
-
-    if prediction < 500:
-        st.success("Low Traffic 🟢")
-    elif prediction < 850:
-        st.warning("Moderate Traffic 🟡")
+    if prediction < 2000:
+        st.success("Low Traffic")
+        st.info("Normal traffic flow expected.")
+    elif prediction < 4000:
+        st.warning("Moderate Traffic")
+        st.info("Monitor traffic conditions.")
     else:
-        st.error("High Traffic 🔴")
+        st.error("High Traffic")
+        st.info("Consider reviewing traffic signal timing.")
 
-st.divider()
+# Historical analytics
+st.subheader("Historical Traffic Analytics")
 
-st.subheader("Traffic Data Visualization")
+df["date_time"] = pd.to_datetime(df["date_time"])
+hourly = df.groupby(df["date_time"].dt.hour)[
+    "traffic_volume"
+].mean()
 
-st.line_chart(
-    data.set_index("hour")["traffic_volume"]
-)
-
-st.caption(
-    "Educational ML prototype using illustrative sample data."
-      )
+st.line_chart(hourly)
+st.subheader("Dataset Overview")
+st.write(df.head())
